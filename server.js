@@ -35,15 +35,11 @@ app.post("/api/telegram", async (req, res) => {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
-    }).replace(', ', ' '); // e.g. "August 12 2025 10:18 PM"
+    }).replace(', ', ' ');
 
     const unitValue = unit === "Other..." ? (otherUnit.trim() || "Not specified") : (unit.trim() || "Not specified");
 
-    // Determine unit value
-    const unitValue = unit === "Other..." ? (otherUnit.trim() || "Not specified") : (unit.trim() || "Not specified");
-
-    // Compose the message to send
-     const messageLines = [
+    const messageLines = [
       `Job Order Request (${formattedDateTime})`,
       ``,
       `👤 Name: ${name.trim() || "Not specified"}`,
@@ -56,34 +52,47 @@ app.post("/api/telegram", async (req, res) => {
 
     const message = messageLines.join('\n');
 
-    // Send to Telegram Bot API
-    const telegramResponse = await fetch(
-      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: TELEGRAM_CHAT_ID,
-          text: message,
-          parse_mode: "HTML",
-        }),
-      }
-    );
+    let telegramResponse;
+    try {
+      telegramResponse = await fetch(
+        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: TELEGRAM_CHAT_ID,
+            text: message,
+            parse_mode: "HTML",
+          }),
+        }
+      );
+    } catch (fetchError) {
+      console.error("Fetch error when sending to Telegram:", fetchError);
+      return res.status(502).json({
+        status: "error",
+        message: "Network error while sending message to Telegram. Please try again later.",
+        details: fetchError.message,
+      });
+    }
 
     if (!telegramResponse.ok) {
       const errorText = await telegramResponse.text();
       console.error("Telegram API error:", errorText);
       return res.status(telegramResponse.status).json({
         status: "error",
-        message: "Failed to send message to Telegram",
+        message: "Failed to send message to Telegram.",
         details: errorText,
       });
     }
 
     res.json({ status: "success", message: "✅ Request sent successfully! We will contact you soon." });
   } catch (error) {
-    console.error("Server error:", error);
-    res.status(500).json({ status: "error", message: "Internal server error", details: error.message });
+    console.error("Internal server error:", error);
+    res.status(500).json({
+      status: "error",
+      message: "Internal server error. Please try again later.",
+      details: error.message,
+    });
   }
 });
 
