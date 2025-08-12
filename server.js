@@ -6,8 +6,9 @@ import FormData from "form-data";
 
 const app = express();
 app.use(cors());
+// Do NOT use express.json() or express.urlencoded() since multer will handle multipart/form-data
 
-const upload = multer(); // memory storage, files as buffer
+const upload = multer(); // Memory storage
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
@@ -18,7 +19,7 @@ if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
 }
 
 app.post("/api/telegram", upload.single("photo"), async (req, res) => {
-  console.log("Received file:", req.file); // Debug info
+  console.log("Received file:", req.file); // Debug log
 
   try {
     const {
@@ -57,7 +58,7 @@ app.post("/api/telegram", upload.single("photo"), async (req, res) => {
     const message = messageLines.join("\n");
 
     if (req.file) {
-      // Send photo with caption
+      // Photo uploaded, send photo with caption
       const form = new FormData();
       form.append("chat_id", TELEGRAM_CHAT_ID);
       form.append("caption", message);
@@ -114,6 +115,7 @@ app.post("/api/telegram", upload.single("photo"), async (req, res) => {
     }
 
     res.json({ status: "success", message: "✅ Request sent successfully! We will contact you soon." });
+
   } catch (error) {
     console.error("Internal server error:", error);
     res.status(500).json({
