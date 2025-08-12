@@ -8,7 +8,11 @@ const app = express();
 app.use(cors());
 // Do NOT use express.json() or express.urlencoded() since multer will handle multipart/form-data
 
-const upload = multer(); // memory storage, files are buffers
+const upload = multer(); // Memory storage
+app.post("/api/telegram", upload.single("photo"), async (req, res) => {
+  console.log("Received file:", req.file); // Debug log
+  // ...
+});
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
@@ -18,7 +22,6 @@ if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
   process.exit(1);
 }
 
-app.post("/api/telegram", upload.single("photo"), async (req, res) => {
   try {
     const {
       name = "Not specified",
