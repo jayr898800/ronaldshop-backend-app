@@ -2,14 +2,13 @@ import express from "express";
 import cors from "cors";
 import fetch from "node-fetch";
 import multer from "multer";
+import FormData from "form-data";   // <-- Move this here
 
 const app = express();
 app.use(cors());
-// Remove or comment out express.json() and express.urlencoded() since multer will handle form-data
-// app.use(express.json());
-// app.use(express.urlencoded({ extended: true }));
+// Do NOT use express.json() or express.urlencoded() since multer will handle multipart/form-data
 
-const upload = multer(); // memory storage by default, files will be buffers
+const upload = multer(); // memory storage, files are buffers
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
@@ -21,7 +20,6 @@ if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
 
 app.post("/api/telegram", upload.single("photo"), async (req, res) => {
   try {
-    // req.body fields
     const {
       name = "Not specified",
       contact = "Not specified",
@@ -33,14 +31,14 @@ app.post("/api/telegram", upload.single("photo"), async (req, res) => {
     } = req.body;
 
     const now = new Date();
-    const formattedDateTime = now.toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
+    const formattedDateTime = now.toLocaleString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
       hour12: true,
-    }).replace(', ', ' ');
+    }).replace(", ", " ");
 
     const unitValue = unit === "Other..." ? (otherUnit.trim() || "Not specified") : (unit.trim() || "Not specified");
 
@@ -55,15 +53,10 @@ app.post("/api/telegram", upload.single("photo"), async (req, res) => {
       `⚠️ Issue: ${issue.trim() || "Not specified"}`,
     ];
 
-    const message = messageLines.join('\n');
+    const message = messageLines.join("\n");
 
-    // If photo uploaded, send photo with caption
     if (req.file) {
-      // req.file.buffer contains the image data
-
-      // Send multipart/form-data with form-data package to Telegram API
-      import FormData from "form-data"; // make sure installed
-
+      // Photo uploaded, send photo with caption
       const form = new FormData();
       form.append("chat_id", TELEGRAM_CHAT_ID);
       form.append("caption", message);
@@ -95,7 +88,7 @@ app.post("/api/telegram", upload.single("photo"), async (req, res) => {
       return res.json({ status: "success", message: "✅ Request with photo sent successfully! We will contact you soon." });
     }
 
-    // If no photo, send normal text message
+    // No photo, send text message
     const telegramResponse = await fetch(
       `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
       {
@@ -128,4 +121,9 @@ app.post("/api/telegram", upload.single("photo"), async (req, res) => {
       details: error.message,
     });
   }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
