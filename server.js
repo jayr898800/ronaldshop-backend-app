@@ -40,7 +40,7 @@ app.post("/api/telegram", async (req, res) => {
     const unitValue = unit === "Other..." ? (otherUnit.trim() || "Not specified") : (unit.trim() || "Not specified");
 
     const messageLines = [
-      `Job Order Request (${formattedDateTime})`,
+      `🛠️Job Order Request (${formattedDateTime})`,
       ``,
       `👤 Name: ${name.trim() || "Not specified"}`,
       `📞 Contact Number: ${contact.trim() || "Not specified"}`,
