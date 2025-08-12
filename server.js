@@ -2,17 +2,12 @@ import express from "express";
 import cors from "cors";
 import fetch from "node-fetch";
 import multer from "multer";
-import FormData from "form-data";   // <-- Move this here
+import FormData from "form-data";
 
 const app = express();
 app.use(cors());
-// Do NOT use express.json() or express.urlencoded() since multer will handle multipart/form-data
 
-const upload = multer(); // Memory storage
-app.post("/api/telegram", upload.single("photo"), async (req, res) => {
-  console.log("Received file:", req.file); // Debug log
-  // ...
-});
+const upload = multer(); // memory storage, files as buffer
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
@@ -21,6 +16,9 @@ if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
   console.error("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID environment variables");
   process.exit(1);
 }
+
+app.post("/api/telegram", upload.single("photo"), async (req, res) => {
+  console.log("Received file:", req.file); // Debug info
 
   try {
     const {
@@ -59,7 +57,7 @@ if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
     const message = messageLines.join("\n");
 
     if (req.file) {
-      // Photo uploaded, send photo with caption
+      // Send photo with caption
       const form = new FormData();
       form.append("chat_id", TELEGRAM_CHAT_ID);
       form.append("caption", message);
