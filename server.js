@@ -4,7 +4,7 @@ import fetch from "node-fetch";
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));  // increased limit for big base64 images
 app.use(express.urlencoded({ extended: true }));
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -25,6 +25,8 @@ app.post("/api/telegram", async (req, res) => {
       otherUnit = "",
       location = "Not specified",
       issue = "Not specified",
+      imageUrl,      // optional image URL from frontend
+      imageBase64,   // optional base64 image string from frontend
     } = req.body;
 
     const now = new Date();
@@ -52,9 +54,59 @@ app.post("/api/telegram", async (req, res) => {
 
     const message = messageLines.join('\n');
 
-    let telegramResponse;
-    try {
-      telegramResponse = await fetch(
+    // If imageBase64 is provided, convert to a Buffer and send via multipart/form-data.
+    // If imageUrl is provided, just send the photo with caption.
+    // Else send a text message.
+
+    if (imageUrl) {
+      // Send photo by URL with caption = message
+      const telegramResponse = await fetch(
+        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: TELEGRAM_CHAT_ID,
+            photo: imageUrl,
+            caption: message,
+            parse_mode: "HTML",
+          }),
+        }
+      );
+
+      if (!telegramResponse.ok) {
+        const errorText = await telegramResponse.text();
+        console.error("Telegram API error (sendPhoto URL):", errorText);
+        return res.status(telegramResponse.status).json({
+          status: "error",
+          message: "Failed to send photo message to Telegram.",
+          details: errorText,
+        });
+      }
+
+      return res.json({ status: "success", message: "✅ Request with image URL sent successfully!" });
+    } 
+    else if (imageBase64) {
+      // Send photo by uploading base64 data as file - requires multipart/form-data
+      // For that, we need form-data package and stream the buffer
+
+      // We'll handle this in a helper function below
+
+      const result = await sendPhotoBase64(imageBase64, message);
+      if (!result.ok) {
+        console.error("Telegram API error (sendPhoto Base64):", result.error);
+        return res.status(500).json({
+          status: "error",
+          message: "Failed to send base64 image to Telegram.",
+          details: result.error,
+        });
+      }
+
+      return res.json({ status: "success", message: "✅ Request with base64 image sent successfully!" });
+    }
+    else {
+      // No image, send as text message
+      const telegramResponse = await fetch(
         `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
         {
           method: "POST",
@@ -66,26 +118,19 @@ app.post("/api/telegram", async (req, res) => {
           }),
         }
       );
-    } catch (fetchError) {
-      console.error("Fetch error when sending to Telegram:", fetchError);
-      return res.status(502).json({
-        status: "error",
-        message: "Network error while sending message to Telegram. Please try again later.",
-        details: fetchError.message,
-      });
-    }
 
-    if (!telegramResponse.ok) {
-      const errorText = await telegramResponse.text();
-      console.error("Telegram API error:", errorText);
-      return res.status(telegramResponse.status).json({
-        status: "error",
-        message: "Failed to send message to Telegram.",
-        details: errorText,
-      });
-    }
+      if (!telegramResponse.ok) {
+        const errorText = await telegramResponse.text();
+        console.error("Telegram API error (sendMessage):", errorText);
+        return res.status(telegramResponse.status).json({
+          status: "error",
+          message: "Failed to send message to Telegram.",
+          details: errorText,
+        });
+      }
 
-    res.json({ status: "success", message: "✅ Request sent successfully! We will contact you soon." });
+      return res.json({ status: "success", message: "✅ Request sent successfully! We will contact you soon." });
+    }
   } catch (error) {
     console.error("Internal server error:", error);
     res.status(500).json({
@@ -95,6 +140,51 @@ app.post("/api/telegram", async (req, res) => {
     });
   }
 });
+
+// Helper to send base64 photo to Telegram using multipart/form-data
+import FormData from "form-data";
+
+async function sendPhotoBase64(base64String, caption) {
+  try {
+    // Remove header if included like "data:image/png;base64,"
+    const matches = base64String.match(/^data:(image\/\w+);base64,(.+)$/);
+    let imageBuffer;
+    let mimeType = "image/jpeg"; // default mime
+
+    if (matches) {
+      mimeType = matches[1];
+      imageBuffer = Buffer.from(matches[2], 'base64');
+    } else {
+      imageBuffer = Buffer.from(base64String, 'base64');
+    }
+
+    const form = new FormData();
+    form.append("chat_id", TELEGRAM_CHAT_ID);
+    form.append("caption", caption);
+    form.append("parse_mode", "HTML");
+    form.append("photo", imageBuffer, {
+      filename: `image.${mimeType.split('/')[1]}`,
+      contentType: mimeType,
+    });
+
+    const response = await fetch(
+      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
+      {
+        method: "POST",
+        body: form,
+        headers: form.getHeaders(),
+      }
+    );
+
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      return { ok: false, error: data.description || "Unknown error" };
+    }
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
