@@ -18,8 +18,8 @@ if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
   process.exit(1);
 }
 
-app.post("/api/telegram", upload.single("photo"), async (req, res) => {
-  console.log("Received file:", req.file); // Debug log
+app.post("/api/telegram", upload.array("photos", 10), async (req, res) => {
+  console.log("Received files:", req.files); // Debug log
 
   try {
     const {
@@ -57,19 +57,29 @@ app.post("/api/telegram", upload.single("photo"), async (req, res) => {
 
     const message = messageLines.join("\n");
 
-    if (req.file) {
-      // Photo uploaded, send photo with caption
+    if (req.files && req.files.length > 0) {
+      // Send multiple photos as a media group
       const form = new FormData();
       form.append("chat_id", TELEGRAM_CHAT_ID);
-      form.append("caption", message);
-      form.append("parse_mode", "HTML");
-      form.append("photo", req.file.buffer, {
-        filename: req.file.originalname || "photo.jpg",
-        contentType: req.file.mimetype || "image/jpeg",
+
+      const mediaArray = req.files.map((file, index) => ({
+        type: "photo",
+        media: `attach://photo${index}`,
+        caption: index === 0 ? message : "", // only first photo gets caption
+        parse_mode: "HTML",
+      }));
+
+      form.append("media", JSON.stringify(mediaArray));
+
+      req.files.forEach((file, index) => {
+        form.append(`photo${index}`, file.buffer, {
+          filename: file.originalname || `photo${index}.jpg`,
+          contentType: file.mimetype || "image/jpeg",
+        });
       });
 
       const telegramResponse = await fetch(
-        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`,
+        `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMediaGroup`,
         {
           method: "POST",
           body: form,
@@ -82,15 +92,15 @@ app.post("/api/telegram", upload.single("photo"), async (req, res) => {
         console.error("Telegram API error:", errorText);
         return res.status(telegramResponse.status).json({
           status: "error",
-          message: "Failed to send photo message to Telegram.",
+          message: "Failed to send photo messages to Telegram.",
           details: errorText,
         });
       }
 
-      return res.json({ status: "success", message: "✅ Request with photo sent successfully! We will contact you soon." });
+      return res.json({ status: "success", message: "📞 We will contact you soon." });
     }
 
-    // No photo, send text message
+    // No photos, send text message only
     const telegramResponse = await fetch(
       `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
       {
