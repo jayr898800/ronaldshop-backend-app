@@ -114,7 +114,7 @@ app.post("/api/telegram", upload.single("photo"), async (req, res) => {
       });
     }
 
-    res.json({ status: "success", message: "✅ Request sent successfully! We will contact you soon." });
+    res.json({ status: "success", message: "📞 We will contact you soon." });
 
   } catch (error) {
     console.error("Internal server error:", error);
