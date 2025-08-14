@@ -6,9 +6,17 @@ import FormData from "form-data";
 
 const app = express();
 app.use(cors());
-// Do NOT use express.json() or express.urlencoded() since multer will handle multipart/form-data
 
 const upload = multer(); // Memory storage
+
+// ===== Visitor Counter =====
+let visitorCount = 0;
+
+app.get("/api/visitors", (req, res) => {
+  visitorCount++;
+  res.json({ count: visitorCount });
+});
+// ===========================
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
@@ -19,7 +27,7 @@ if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
 }
 
 app.post("/api/telegram", upload.array("photos", 10), async (req, res) => {
-  console.log("Received files:", req.files); // Debug log
+  console.log("Received files:", req.files);
 
   try {
     const {
@@ -58,14 +66,13 @@ app.post("/api/telegram", upload.array("photos", 10), async (req, res) => {
     const message = messageLines.join("\n");
 
     if (req.files && req.files.length > 0) {
-      // Send multiple photos as a media group
       const form = new FormData();
       form.append("chat_id", TELEGRAM_CHAT_ID);
 
       const mediaArray = req.files.map((file, index) => ({
         type: "photo",
         media: `attach://photo${index}`,
-        caption: index === 0 ? message : "", // only first photo gets caption
+        caption: index === 0 ? message : "",
         parse_mode: "HTML",
       }));
 
@@ -100,7 +107,6 @@ app.post("/api/telegram", upload.array("photos", 10), async (req, res) => {
       return res.json({ status: "success", message: "📞 We will contact you soon." });
     }
 
-    // No photos, send text message only
     const telegramResponse = await fetch(
       `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
       {
