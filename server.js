@@ -3,27 +3,54 @@ import cors from "cors";
 import fetch from "node-fetch";
 import multer from "multer";
 import FormData from "form-data";
+import fs from "fs";
+import { Server } from "socket.io";
+import http from "http";
 
 const app = express();
-app.use(cors());
-
-const upload = multer(); // Memory storage
-
-// ===== Visitor Counter =====
-let visitorCount = 0;
-
-// Increment only when explicitly called (e.g., page load)
-app.get("/api/visitors/increment", (req, res) => {
-  visitorCount++;
-  res.json({ count: visitorCount });
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*", // Change to your frontend URL in production
+  }
 });
 
-// Just get current count without increment
+app.use(cors());
+const upload = multer();
+
+// ===== VISITOR COUNTER (persistent storage) =====
+let visitorCount = 0;
+const COUNTER_FILE = "./counter.json";
+
+// Load counter from file if exists
+if (fs.existsSync(COUNTER_FILE)) {
+  const savedData = JSON.parse(fs.readFileSync(COUNTER_FILE, "utf8"));
+  visitorCount = savedData.count || 0;
+}
+
+// When a new client connects, increment and broadcast
+io.on("connection", (socket) => {
+  visitorCount++;
+  saveCounter();
+  io.emit("visitorCount", visitorCount);
+
+  socket.on("disconnect", () => {
+    // Optional: Track active visitors instead of total visits
+  });
+});
+
+function saveCounter() {
+  fs.writeFileSync(COUNTER_FILE, JSON.stringify({ count: visitorCount }));
+}
+
+// API endpoint to get the current count
 app.get("/api/visitors", (req, res) => {
   res.json({ count: visitorCount });
 });
-// ===========================
 
+// =================================================
+
+// ===== TELEGRAM LOGIC (same as yours) =====
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
@@ -149,6 +176,6 @@ app.post("/api/telegram", upload.array("photos", 10), async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
