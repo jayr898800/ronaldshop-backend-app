@@ -12,8 +12,14 @@ const upload = multer(); // Memory storage
 // ===== Visitor Counter =====
 let visitorCount = 0;
 
-app.get("/api/visitors", (req, res) => {
+// Increment only when explicitly called (e.g., page load)
+app.get("/api/visitors/increment", (req, res) => {
   visitorCount++;
+  res.json({ count: visitorCount });
+});
+
+// Just get current count without increment
+app.get("/api/visitors", (req, res) => {
   res.json({ count: visitorCount });
 });
 // ===========================
