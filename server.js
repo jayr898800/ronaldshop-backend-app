@@ -34,8 +34,10 @@ io.on("connection", (socket) => {
   saveCounter();
   io.emit("visitorCount", visitorCount);
 
+  console.log(`Visitor connected. Total count: ${visitorCount}`);
+
   socket.on("disconnect", () => {
-    // Optional: Track active visitors instead of total visits
+    console.log("Visitor disconnected");
   });
 });
 
