@@ -18,41 +18,45 @@ const io = new Server(server, {
 app.use(cors());
 const upload = multer();
 
-// ===== VISITOR COUNTER (persistent storage) =====
+// ===== VISITOR COUNTER (persistent total visitors) =====
 let visitorCount = 0;
 const COUNTER_FILE = "./counter.json";
 
 // Load counter from file if exists
 if (fs.existsSync(COUNTER_FILE)) {
-  const savedData = JSON.parse(fs.readFileSync(COUNTER_FILE, "utf8"));
-  visitorCount = savedData.count || 0;
+  try {
+    const savedData = JSON.parse(fs.readFileSync(COUNTER_FILE, "utf8"));
+    visitorCount = savedData.count || 0;
+  } catch (err) {
+    console.error("Error reading counter.json, starting from 0");
+    visitorCount = 0;
+  }
 }
 
-// When a new client connects, increment and broadcast
+// Save counter asynchronously
+function saveCounter() {
+  fs.writeFile(COUNTER_FILE, JSON.stringify({ count: visitorCount }), (err) => {
+    if (err) console.error("Error saving counter:", err);
+  });
+}
+
+// Increment and broadcast when a new client connects
 io.on("connection", (socket) => {
   visitorCount++;
   saveCounter();
   io.emit("visitorCount", visitorCount);
 
-  console.log(`Visitor connected. Total count: ${visitorCount}`);
-
-  socket.on("disconnect", () => {
-    console.log("Visitor disconnected");
-  });
+  console.log(`Visitor connected. Total visitors: ${visitorCount}`);
+  // No decrement on disconnect → persistent total visitors
 });
 
-function saveCounter() {
-  fs.writeFileSync(COUNTER_FILE, JSON.stringify({ count: visitorCount }));
-}
-
-// API endpoint to get the current count
 app.get("/api/visitors", (req, res) => {
   res.json({ count: visitorCount });
 });
-
 // =================================================
 
-// ===== TELEGRAM LOGIC (same as yours) =====
+
+// ===== TELEGRAM LOGIC =====
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
@@ -176,6 +180,7 @@ app.post("/api/telegram", upload.array("photos", 10), async (req, res) => {
     });
   }
 });
+
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
